@@ -66,16 +66,16 @@
             </header>
 
             <div class="space-y-4">
-                <button id="goto-scanner-btn" class="w-full flex items-center justify-center bg-sky-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-sky-700 transition duration-300 shadow-md">
+                <button id="goto-scanner-btn" class="w-full flex items-center justify-center bg-sky-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-sky-700 transition duration-300 shadow-md disabled:bg-slate-400" disabled>
                     <svg class="btn-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" focusable="false"><title>Ícone de QR Code</title><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.5A.75.75 0 014.5 3.75h1.5a.75.75 0 010 1.5h-1.5a.75.75 0 01-.75-.75zM3.75 18a.75.75 0 01.75.75v1.5c0 .414.336.75.75.75h1.5a.75.75 0 010 1.5h-1.5A2.25 2.25 0 013 19.5v-1.5a.75.75 0 01.75-.75zM18 3.75a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5a.75.75 0 01.75-.75zM19.5 18a.75.75 0 01.75.75v1.5a2.25 2.25 0 01-2.25 2.25h-1.5a.75.75 0 010-1.5h1.5a.75.75 0 00.75-.75v-1.5a.75.75 0 01.75-.75zM9 12.75a.75.75 0 01.75-.75h4.5a.75.75 0 010 1.5h-4.5a.75.75 0 01-.75-.75z" /><path stroke-linecap="round" stroke-linejoin="round" d="M3 8.25V7.5h1.5V6H3v2.25zm18 0V7.5h-1.5V6H21v2.25zM3 15.75V15h1.5v1.5H3v-1.5zm18 0V15h-1.5v1.5H21v-1.5z" /><path stroke-linecap="round" stroke-linejoin="round" d="M9 3.75h6v1.5H9v-1.5zm0 15h6v1.5H9v-1.5z" /></svg>
                     Escanear QR Codes
                 </button>
-                <button id="goto-consultas-btn" class="w-full flex items-center justify-center bg-slate-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-slate-700 transition duration-300 shadow-md">
+                <button id="goto-consultas-btn" class="w-full flex items-center justify-center bg-slate-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-slate-700 transition duration-300 shadow-md disabled:bg-slate-400" disabled>
                     <svg class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><title>Ícone de prancheta</title><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
                     Consultar Protocolos
                 </button>
             </div>
-            <div id="connection-status" class="mt-8 text-center text-xs text-slate-500"></div>
+            <div id="connection-status" class="mt-8 text-center text-xs text-slate-500">Inicializando banco de dados...</div>
         </section>
 
         <section id="scanner-view" class="view">
@@ -184,10 +184,16 @@
                 request.onsuccess = (event) => {
                     db = event.target.result;
                     console.log('Banco de dados iniciado com sucesso.');
+                    document.getElementById('goto-scanner-btn').disabled = false;
+                    document.getElementById('goto-consultas-btn').disabled = false;
+                    updateConnectionStatus();
                 };
 
                 request.onerror = (event) => {
                     console.error('Erro ao iniciar o banco de dados:', event.target.errorCode);
+                    const statusEl = document.getElementById('connection-status');
+                    statusEl.textContent = 'Falha crítica: O banco de dados não pôde ser carregado.';
+                    statusEl.className = 'mt-8 text-center text-xs text-red-600 font-bold';
                 };
             }
 
@@ -641,7 +647,6 @@
 
             // --- INICIALIZAÇÃO ---
             initDB();
-            updateConnectionStatus();
             window.addEventListener('online', updateConnectionStatus);
             window.addEventListener('offline', updateConnectionStatus);
         });
