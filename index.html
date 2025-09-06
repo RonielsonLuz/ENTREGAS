@@ -1,4 +1,4 @@
-<index html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
@@ -76,6 +76,9 @@
                 </button>
             </div>
             <div id="connection-status" class="mt-8 text-center text-xs text-slate-500">Inicializando banco de dados...</div>
+            <div class="mt-4 text-center">
+                <button id="clear-data-btn" class="text-xs text-rose-600 hover:underline">Problemas? Limpar dados locais e reiniciar</button>
+            </div>
         </section>
 
         <section id="scanner-view" class="view">
@@ -136,11 +139,15 @@
                 <input type="text" id="search-input" class="block w-full px-3 py-2 bg-white border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500" placeholder="Buscar por pedido, NF ou TAG...">
             </div>
             <p class="text-xs text-slate-500 mb-2">Toque nos itens para selecionar.</p>
-            <div id="protocol-list" class="mt-1 space-y-2 max-h-80 overflow-y-auto"></div>
+            <div id="protocol-list" class="mt-1 space-y-2 max-h-[20rem] overflow-y-auto"></div>
             <div class="flex space-x-2 mt-4">
                  <button id="download-pdf-btn" class="w-full flex items-center justify-center bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-cyan-700 transition duration-300 disabled:bg-slate-400 shadow-sm" disabled>
                     <svg class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><title>Ícone de download</title><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                     <span>Baixar PDF</span>
+                </button>
+                <button id="delete-selected-btn" class="w-full flex items-center justify-center bg-rose-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-rose-700 transition duration-300 disabled:bg-slate-400 shadow-sm" disabled>
+                    <svg class="btn-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true"><title>Ícone de Lixeira</title><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.134-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.067-2.09 1.02-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
+                    <span>Excluir</span>
                 </button>
             </div>
             <button class="back-to-main-btn mt-6 w-full text-center text-sm text-slate-600 hover:underline">Voltar ao Início</button>
@@ -149,6 +156,17 @@
     </main>
     
     <canvas id="photo-canvas" class="hidden"></canvas>
+    
+    <div id="delete-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-lg p-6 shadow-xl max-w-sm w-full">
+            <h3 class="text-lg font-bold text-slate-800">Confirmar Exclusão</h3>
+            <p class="text-slate-600 mt-2">Tem certeza de que deseja excluir os protocolos selecionados? Esta ação não pode ser desfeita.</p>
+            <div class="mt-6 flex justify-end space-x-4">
+                <button id="cancel-delete-btn" class="px-4 py-2 bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300">Cancelar</button>
+                <button id="confirm-delete-btn" class="px-4 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-700">Excluir</button>
+            </div>
+        </div>
+    </div>
 
 
     <script>
@@ -168,6 +186,7 @@
             let statusTimeout;
             let capturedPhotoData = null; 
             let currentCameraStream = null;
+            let currentFacingMode = 'user'; // 'user' para frontal, 'environment' para traseira
 
             // --- BANCO DE DADOS (INDEXEDDB) ---
             function initDB() {
@@ -196,6 +215,32 @@
                     statusEl.className = 'mt-8 text-center text-xs text-red-600 font-bold';
                 };
             }
+            
+            function deleteDB() {
+                return new Promise((resolve, reject) => {
+                    const statusEl = document.getElementById('connection-status');
+                    statusEl.textContent = "Limpando dados locais...";
+                    console.log("Attempting to delete database...");
+                    const deleteRequest = indexedDB.deleteDatabase('protocolosDB');
+
+                    deleteRequest.onsuccess = () => {
+                        console.log("Database deleted successfully.");
+                        resolve();
+                    };
+                    deleteRequest.onerror = (event) => {
+                        console.error("Error deleting database:", event.target.errorCode);
+                        statusEl.textContent = "Erro ao limpar os dados.";
+                        statusEl.className = 'mt-8 text-center text-xs text-red-600 font-bold';
+                        reject(event.target.error);
+                    };
+                    deleteRequest.onblocked = () => {
+                        console.warn("Database deletion is blocked. Close other tabs with the app open.");
+                        statusEl.textContent = "Feche outras abas do app e tente novamente.";
+                        statusEl.className = 'mt-8 text-center text-xs text-amber-600 font-bold';
+                        reject(new Error("Database deletion blocked."));
+                    };
+                });
+            }
 
             function saveProtocolToDB(protocol) {
                 return new Promise((resolve, reject) => {
@@ -205,6 +250,28 @@
                     const request = store.add(protocol);
                     request.onsuccess = () => resolve(request.result);
                     request.onerror = () => reject(request.error);
+                });
+            }
+            
+            function deleteProtocolsFromDB(ids) {
+                return new Promise((resolve, reject) => {
+                    if (!db) return reject("Banco de dados não está disponível.");
+                    const transaction = db.transaction(['entregas'], 'readwrite');
+                    const store = transaction.objectStore('entregas');
+                    let deleteCount = 0;
+
+                    transaction.oncomplete = () => {
+                        console.log(`${deleteCount} protocols deleted.`);
+                        resolve();
+                    };
+                    transaction.onerror = (event) => {
+                        reject(event.target.error);
+                    };
+                    
+                    ids.forEach(id => {
+                        store.delete(id);
+                        deleteCount++;
+                    });
                 });
             }
             
@@ -279,6 +346,18 @@
             });
             
             document.getElementById('summary-back-btn').addEventListener('click', () => showView('main'));
+            
+            document.getElementById('clear-data-btn').addEventListener('click', async () => {
+                if(confirm("Tem certeza que deseja apagar TODOS os dados? Esta ação não pode ser desfeita.")){
+                    try {
+                        await deleteDB();
+                        document.getElementById('connection-status').textContent = "Reiniciando...";
+                        location.reload();
+                    } catch (error) {
+                        console.error("Failed to clear data:", error);
+                    }
+                }
+            });
 
             // --- SCANNER ---
             function showScanStatus(message, type = 'success') {
@@ -370,7 +449,7 @@
                 cameraContainer.classList.remove('hidden');
 
                 if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
+                    navigator.mediaDevices.getUserMedia({ video: { facingMode: currentFacingMode } })
                         .then(stream => {
                             currentCameraStream = stream;
                             video.srcObject = stream;
@@ -382,6 +461,16 @@
                             closeCamera();
                         });
                 }
+            }
+            
+            function switchCamera() {
+                currentFacingMode = (currentFacingMode === 'user') ? 'environment' : 'user';
+                
+                if (currentCameraStream) {
+                    currentCameraStream.getTracks().forEach(track => track.stop());
+                }
+                
+                openCamera();
             }
 
             function closeCamera() {
@@ -424,6 +513,7 @@
                 const container = document.getElementById('protocol-forms-container');
                 container.innerHTML = ''; 
                 capturedPhotoData = null; 
+                currentFacingMode = 'user';
                 
                 const formHtml = `
                     <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm" id="protocol-form-0">
@@ -450,9 +540,10 @@
                                 </div>
                                 <div id="camera-container-0" class="hidden">
                                     <video id="camera-feed-0" class="w-full rounded-lg border bg-slate-200" autoplay playsinline></video>
-                                    <div class="flex space-x-4 mt-2">
-                                        <button type="button" id="capture-photo-btn-0" class="w-full bg-sky-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-sky-700">Capturar</button>
-                                        <button type="button" id="close-camera-btn-0" class="w-full bg-rose-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-rose-700">Cancelar</button>
+                                    <div class="flex space-x-2 mt-2">
+                                        <button type="button" id="capture-photo-btn-0" class="flex-1 bg-sky-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-sky-700">Capturar</button>
+                                        <button type="button" id="switch-camera-btn-0" class="flex-1 bg-slate-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-slate-600">Trocar</button>
+                                        <button type="button" id="close-camera-btn-0" class="flex-1 bg-rose-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-rose-700">Cancelar</button>
                                     </div>
                                 </div>
                             </div>
@@ -468,6 +559,7 @@
                 
                 document.getElementById('open-camera-btn-0').addEventListener('click', openCamera);
                 document.getElementById('capture-photo-btn-0').addEventListener('click', capturePhoto);
+                document.getElementById('switch-camera-btn-0').addEventListener('click', switchCamera);
                 document.getElementById('close-camera-btn-0').addEventListener('click', closeCamera);
                 
                 const canvas = document.getElementById('signature-canvas-0');
@@ -564,7 +656,7 @@
                     listEl.querySelectorAll('.protocol-item').forEach(item => {
                         item.addEventListener('click', () => {
                             item.classList.toggle('selected');
-                            updateDownloadButtonState();
+                            updateConsultasButtonsState();
                         });
                     });
 
@@ -578,9 +670,11 @@
                 displayProtocols(e.target.value);
             });
             
-            function updateDownloadButtonState() {
-                const selectedItems = document.querySelectorAll('#protocol-list .protocol-item.selected').length;
-                document.getElementById('download-pdf-btn').disabled = selectedItems === 0;
+            function updateConsultasButtonsState() {
+                const selectedCount = document.querySelectorAll('#protocol-list .protocol-item.selected').length;
+                const hasSelection = selectedCount > 0;
+                document.getElementById('download-pdf-btn').disabled = !hasSelection;
+                document.getElementById('delete-selected-btn').disabled = !hasSelection;
             }
 
             // --- GERAÇÃO DE PDF ---
@@ -644,6 +738,42 @@
                 
                 doc.save(`protocolos_${Date.now()}.pdf`);
             });
+            
+            // --- LÓGICA DE EXCLUSÃO ---
+            const deleteModal = document.getElementById('delete-modal');
+            const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
+            const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
+            const deleteSelectedBtn = document.getElementById('delete-selected-btn');
+            let idsToDelete = [];
+
+            deleteSelectedBtn.addEventListener('click', () => {
+                const selectedItems = document.querySelectorAll('#protocol-list .protocol-item.selected');
+                if (selectedItems.length > 0) {
+                    idsToDelete = Array.from(selectedItems).map(el => parseInt(el.dataset.id, 10));
+                    deleteModal.classList.remove('hidden');
+                }
+            });
+
+            cancelDeleteBtn.addEventListener('click', () => {
+                deleteModal.classList.add('hidden');
+                idsToDelete = [];
+            });
+
+            confirmDeleteBtn.addEventListener('click', async () => {
+                if (idsToDelete.length > 0) {
+                    try {
+                        await deleteProtocolsFromDB(idsToDelete);
+                        await displayProtocols(); 
+                        updateConsultasButtonsState();
+                    } catch (error) {
+                        console.error("Erro ao excluir protocolos:", error);
+                        alert("Falha ao excluir os protocolos.");
+                    } finally {
+                        deleteModal.classList.add('hidden');
+                        idsToDelete = [];
+                    }
+                }
+            });
 
             // --- INICIALIZAÇÃO ---
             initDB();
@@ -653,5 +783,4 @@
     </script>
 </body>
 </html>
-
 
